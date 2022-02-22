@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -40,14 +41,15 @@ func crackHash(hash string, dictFilePath string) {
 	}
 
 	defer dictFile.Close()
+
 	scanner := bufio.NewScanner(dictFile)
 	scanner.Split(bufio.ScanLines)
 
-	var dictLine string
+	var dictFileLine string
 
 	for scanner.Scan() {
-		dictLine = scanner.Text()
-		fileHash := generateMd5Hash(dictLine)
+		dictFileLine = scanner.Text()
+		fileHash := generateMd5Hash(dictFileLine)
 
 		if fileHash == hash {
 			hashExists = true
@@ -56,26 +58,59 @@ func crackHash(hash string, dictFilePath string) {
 	}
 
 	if hashExists == true {
-		fmt.Println(dictLine)
+		fmt.Println(dictFileLine)
 	} else {
-		fmt.Print("no string in the dict file matched the hash: " + hash)
+		fmt.Printf("no string in the dict file matched the hash: %s", hash)
 	}
 }
 
 func crackHashList(hashListPath string, dictFilePath string) {
-	hashfile, hashFileErr := os.Open(hashListPath)
+	hashFile, hashFileErr := os.Open(hashListPath)
 	dictFile, dictFileErr := os.Open(dictFilePath)
 
 	if hashFileErr != nil {
 		fmt.Printf("Can't read file: %s", hashListPath)
+		return
 	}
 
 	if dictFileErr != nil {
 		fmt.Printf("Can't read file: %s", dictFilePath)
+		return
 	}
 
-	defer hashfile.Close()
+	defer hashFile.Close()
 	defer dictFile.Close()
+
+	hashFileScanner := bufio.NewScanner(hashFile)
+	hashFileScanner.Split(bufio.ScanLines)
+
+	var hashFileLine string
+	var dictFileLine string
+	hashExists := false
+
+	for hashFileScanner.Scan() {
+		hashFileLine = strings.ToLower(hashFileScanner.Text())
+
+		dictFileScanner := bufio.NewScanner(dictFile)
+		dictFileScanner.Split(bufio.ScanLines)
+		for dictFileScanner.Scan() {
+			dictFileLine = dictFileScanner.Text()
+			dictFileHash := generateMd5Hash(dictFileLine)
+
+			if dictFileHash == hashFileLine {
+				hashExists = true
+				break
+			}
+		}
+
+		if hashExists == true {
+			fmt.Printf("Hash %s matched %s \n", hashFileLine, dictFileLine)
+		}
+
+		// We must reset the file for the wordlist.
+		dictFile.Seek(0, 0)
+		hashExists = false
+	}
 }
 
 func generateMd5Hash(rawString string) string {
